@@ -35,9 +35,11 @@ export default function RootLayout() {
           animation: 'default',
         }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="transaction/[id]" />
         <Stack.Screen name="send" />
         <Stack.Screen name="scan" />
         <Stack.Screen name="receive" />
+        <Stack.Screen name="favorites" />
         <Stack.Screen name="swap" />
         <Stack.Screen
           name="modal"

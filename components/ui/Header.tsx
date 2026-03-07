@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255, 255, 255, 0.08)",
   },
   left: {
-    flex: 1,
+    //flex: 1,
     minWidth: 0,
     alignItems: "flex-start",
     justifyContent: "center",
@@ -102,14 +102,14 @@ const styles = StyleSheet.create({
     width: spacing.sm,
   },
   right: {
-    flex: 1,
+    //flex: 1,
 
     minWidth: 0,
     alignItems: "flex-end",
     justifyContent: "center",
   },
   title: {
-    flex: 1,
+    //flex: 1,
     minWidth: 0,
     fontSize: 20,
     fontWeight: "700",

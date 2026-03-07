@@ -18,3 +18,15 @@ export const colors = {
   brandOrange: '#F97316',
   error: '#EF4444',
 };
+
+/** Palette for wallet avatar backgrounds (e.g. initial letter fallback). */
+export const avatarColors = [
+  '#E11D48',
+  '#1E3A5F',
+  '#78350F',
+  '#166534',
+  '#4C1D95',
+  '#0E7490',
+  '#BE185D',
+  '#B45309',
+];

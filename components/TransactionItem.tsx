@@ -16,6 +16,8 @@ export interface TransactionItemProps {
   subtitle?: string;
   date?: string;
   time?: string;
+  /** When true, show time on the right below amount (Transactions screen layout). */
+  timeOnRight?: boolean;
   showDivider?: boolean;
   iconType?: TransactionIconType;
   iconColor?: string;
@@ -89,6 +91,7 @@ export function TransactionItem({
   subtitle,
   date,
   time,
+  timeOnRight = false,
   showDivider = true,
   iconType = 'default',
   iconColor,
@@ -103,6 +106,8 @@ export function TransactionItem({
   const amountPrefix = isSwap ? '' : isReceived ? '+' : '-';
 
   const timeLabel = time ?? date;
+  const typeLabel = isSwap ? 'Swap' : isReceived ? 'Received' : 'Sent';
+  const leftSubtitle = subtitle ?? (timeOnRight ? typeLabel : timeLabel);
 
   return (
     <View style={[styles.row, showDivider && styles.rowBorder]}>
@@ -111,15 +116,18 @@ export function TransactionItem({
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
-        {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
-        ) : timeLabel ? (
-          <Text style={styles.date}>{timeLabel}</Text>
+        {leftSubtitle ? (
+          <Text style={styles.subtitle} numberOfLines={1}>{leftSubtitle}</Text>
         ) : null}
       </View>
-      <Text style={[styles.amount, { color: amountColor }]}>
-        {amountPrefix}{amount}
-      </Text>
+      <View style={styles.rightColumn}>
+        <Text style={[styles.amount, { color: amountColor }]}>
+          {amountPrefix}{amount}
+        </Text>
+        {timeOnRight && timeLabel ? (
+          <Text style={styles.dateRight}>{timeLabel}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -167,8 +175,16 @@ const styles = StyleSheet.create({
     color: colors.secondaryText,
     marginTop: spacing.xs,
   },
+  rightColumn: {
+    alignItems: 'flex-end',
+  },
   amount: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  dateRight: {
+    fontSize: 12,
+    color: colors.secondaryText,
+    marginTop: spacing.xs,
   },
 });

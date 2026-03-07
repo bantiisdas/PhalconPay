@@ -19,16 +19,20 @@ export interface RecentTransactionData {
 
 export interface RecentTransactionsProps {
   transactions: RecentTransactionData[];
+  /** Section title. Omit or set showTitle={false} when used inside a Section. */
   title?: string;
+  /** When false, title is not rendered (e.g. when wrapped in Section). Default true. */
+  showTitle?: boolean;
 }
 
 export function RecentTransactions({
   transactions,
   title = 'Recent Transactions',
+  showTitle = true,
 }: RecentTransactionsProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      {showTitle && title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
       <Card padding={0} withMargin={false}>
         <View style={styles.list}>
           {transactions.map((tx, index) => (
@@ -53,13 +57,14 @@ export function RecentTransactions({
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: spacing.xxl,
+    marginBottom: 0,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
   },
   list: {
     overflow: 'hidden',

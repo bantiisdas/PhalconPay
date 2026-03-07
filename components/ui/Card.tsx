@@ -38,6 +38,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: CARD_RADIUS,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   margin: {
     marginHorizontal: spacing.lg,

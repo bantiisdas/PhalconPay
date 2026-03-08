@@ -50,13 +50,13 @@ export const TOKEN_INFO: Record<
   },
 };
 
-// list of available tokens for the picker (mint addresses)
+// list of available tokens for the picker and asset list (order: SOL, USDC, JUP, BONK, USDT, WIF)
 export const AVAILABLE_TOKENS = [
   TOKENS.SOL,
   TOKENS.USDC,
-  TOKENS.USDT,
-  TOKENS.BONK,
   TOKENS.JUP,
+  TOKENS.BONK,
+  TOKENS.USDT,
   TOKENS.WIF,
 ];
 

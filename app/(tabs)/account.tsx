@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import Constants from "expo-constants";
@@ -17,7 +17,12 @@ import { spacing } from "@/constants/spacing";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store/wallet-store";
 
-const MOCK_ADDRESS = "9xGk2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU8KJ";
+function formatSol(sol: number): string {
+  if (sol >= 1000) return sol.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (sol >= 1) return sol.toFixed(2);
+  if (sol >= 0.01) return sol.toFixed(4);
+  return sol.toFixed(6);
+}
 
 export default function AccountScreen() {
   const wallet = useWallet();
@@ -28,6 +33,43 @@ export default function AccountScreen() {
   const toggleNetwork = useWalletStore((s) => s.toggleNetwork);
   const [darkMode, setDarkMode] = useState(true);
   const [notifications, setNotifications] = useState(true);
+  const [balanceSol, setBalanceSol] = useState<number | null>(null);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
+
+  const fetchBalances = useCallback(async () => {
+    if (!wallet.connected || !wallet.getBalance) return;
+    try {
+      const [sol, tokens] = await Promise.all([
+        wallet.getBalance(),
+        wallet.getTokenBalances?.() ?? Promise.resolve({}),
+      ]);
+      setBalanceSol(sol);
+      setTokenBalances(tokens);
+    } catch {
+      setBalanceSol(null);
+      setTokenBalances({});
+    }
+  }, [wallet.connected, wallet.getBalance, wallet.getTokenBalances]);
+
+  useEffect(() => {
+    if (wallet.connected) fetchBalances();
+    else {
+      setBalanceSol(null);
+      setTokenBalances({});
+    }
+  }, [wallet.connected, fetchBalances]);
+
+  const balances =
+    wallet.connected && balanceSol !== null
+      ? {
+          SOL: formatSol(balanceSol),
+          USDC: tokenBalances.USDC ?? "0",
+          USDT: tokenBalances.USDT ?? "0",
+          BONK: tokenBalances.BONK ?? "0",
+          JUP: tokenBalances.JUP ?? "0",
+          WIF: tokenBalances.WIF ?? "0",
+        }
+      : undefined;
 
   const appVersion = Constants.expoConfig?.version ?? "1.2.3";
   const versionLabel = appVersion.startsWith("v")
@@ -44,7 +86,6 @@ export default function AccountScreen() {
       >
         <Section>
           <ProfileWalletCard
-            username="Supriyo"
             connected={wallet.connected}
             connecting={wallet.connecting}
             publicKey={wallet.publicKey?.toBase58() || null}
@@ -54,7 +95,7 @@ export default function AccountScreen() {
         </Section>
 
         <Section>
-          <TokenBalanceList />
+          <TokenBalanceList balances={balances} />
         </Section>
 
         <Section>

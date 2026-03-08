@@ -1,20 +1,24 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors } from '@/constants/colors';
-import { spacing } from '@/constants/spacing';
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import { useWalletStore } from "@/store/wallet-store";
 
 export interface HomeHeaderProps {
   title?: string;
-  showNotificationDot?: boolean;
 }
 
-export function HomeHeader({
-  title = 'FalconPay',
-  showNotificationDot = true,
-}: HomeHeaderProps) {
+export function HomeHeader({ title = "FalconPay" }: HomeHeaderProps) {
   const router = useRouter();
+  const isDevnet = useWalletStore((s) => s.isDevnet);
+  const toggleNetwork = useWalletStore((s) => s.toggleNetwork);
+  const displayName = useWalletStore((s) => s.displayName);
+  const initial =
+    displayName.trim().length > 0
+      ? displayName.trim().charAt(0).toUpperCase()
+      : "Y";
 
   return (
     <View style={styles.container}>
@@ -25,31 +29,30 @@ export function HomeHeader({
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
-        <View style={styles.devnetBadge}>
-          <Text style={styles.devnetText}>Devnet</Text>
-        </View>
+        <Pressable
+          onPress={toggleNetwork}
+          style={({ pressed }) => [
+            styles.devnetBadge,
+            pressed && styles.pressed,
+            !isDevnet && styles.mainnetBadge,
+          ]}
+          hitSlop={spacing.sm}
+          accessibilityLabel={isDevnet ? "Switch to Mainnet" : "Switch to Devnet"}
+          accessibilityRole="button"
+        >
+          <Text style={styles.devnetText}>
+            {isDevnet ? "Devnet" : "Mainnet"}
+          </Text>
+        </Pressable>
       </View>
       <Pressable
-        onPress={() => {}}
+        onPress={() => router.push("/(tabs)/account")}
         style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
         hitSlop={spacing.lg}
-        accessibilityLabel="Notifications">
-        <View>
-          <MaterialCommunityIcons
-            name="bell-outline"
-            size={24}
-            color={colors.text}
-          />
-          {showNotificationDot ? <View style={styles.dot} /> : null}
-        </View>
-      </Pressable>
-      <Pressable
-        onPress={() => router.push('/(tabs)/account')}
-        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-        hitSlop={spacing.lg}
-        accessibilityLabel="Account">
+        accessibilityLabel="Account"
+      >
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>J</Text>
+          <Text style={styles.avatarText}>{initial}</Text>
         </View>
       </Pressable>
     </View>
@@ -94,9 +97,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginLeft: spacing.sm,
   },
+  mainnetBadge: {
+    backgroundColor: colors.primary,
+  },
   devnetText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   iconButton: {
@@ -104,15 +110,6 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
-  },
-  dot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.error,
   },
   avatar: {
     width: 36,

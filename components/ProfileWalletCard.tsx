@@ -2,17 +2,21 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { Card } from "@/components/ui/Card";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletStore } from "@/store/wallet-store";
 
 export interface ProfileWalletCardProps {
-  username?: string;
-
-  shortened?: string;
   connected: boolean;
   connecting: boolean;
   publicKey: string | null;
@@ -25,8 +29,9 @@ function shortenAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-3)}`;
 }
 
+const PLACEHOLDER_NAME = "Your Name";
+
 export function ProfileWalletCard({
-  username = "Rahul",
   connected,
   connecting,
   publicKey,
@@ -34,8 +39,12 @@ export function ProfileWalletCard({
   onDisconnect,
 }: ProfileWalletCardProps) {
   const [copied, setCopied] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editValue, setEditValue] = useState("");
   const router = useRouter();
   const wallet = useWallet();
+  const displayName = useWalletStore((s) => s.displayName);
+  const setDisplayName = useWalletStore((s) => s.setDisplayName);
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(publicKey ?? "");
@@ -43,7 +52,18 @@ export function ProfileWalletCard({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const initial = username.charAt(0).toUpperCase();
+  const startEdit = () => {
+    setEditValue(displayName || "");
+    setIsEditingName(true);
+  };
+
+  const saveName = () => {
+    setDisplayName(editValue);
+    setIsEditingName(false);
+  };
+
+  const displayLabel = displayName.trim() || PLACEHOLDER_NAME;
+  const initial = displayLabel.charAt(0).toUpperCase();
 
   return (
     <Card padding="lg" withMargin={false}>
@@ -52,7 +72,52 @@ export function ProfileWalletCard({
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
         <View style={styles.info}>
-          <Text style={styles.username}>{username}</Text>
+          {isEditingName ? (
+            <View style={styles.nameEditRow}>
+              <TextInput
+                style={styles.nameInput}
+                value={editValue}
+                onChangeText={setEditValue}
+                placeholder={PLACEHOLDER_NAME}
+                placeholderTextColor={colors.secondaryText}
+                autoFocus
+                onBlur={saveName}
+                onSubmitEditing={saveName}
+                returnKeyType="done"
+                maxLength={32}
+              />
+              <Pressable
+                onPress={saveName}
+                style={({ pressed }) => [styles.pencilBtn, pressed && styles.pressed]}
+                accessibilityLabel="Save name"
+                accessibilityRole="button"
+              >
+                <Ionicons name="checkmark" size={22} color={colors.success} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={startEdit}
+              style={styles.nameRow}
+              accessibilityLabel="Edit name"
+              accessibilityRole="button"
+            >
+              <Text
+                style={[
+                  styles.username,
+                  !displayName.trim() && styles.usernamePlaceholder,
+                ]}
+              >
+                {displayLabel}
+              </Text>
+              <Ionicons
+                name="pencil"
+                size={18}
+                color={colors.secondaryText}
+                style={styles.pencilIcon}
+              />
+            </Pressable>
+          )}
           <View style={styles.addressRow}>
             <Text style={styles.address} selectable numberOfLines={1}>
               {shortenAddress(publicKey ?? "")}
@@ -98,7 +163,7 @@ export function ProfileWalletCard({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => {}}
+          onPress={onDisconnect}
           style={({ pressed }) => [
             styles.actionBtn,
             pressed && styles.actionBtnPressed,
@@ -135,25 +200,6 @@ export function ProfileWalletCard({
             Generate QR Code
           </Text>
         </Pressable>
-        <Pressable
-          onPress={() => {}}
-          style={({ pressed }) => [
-            styles.actionBtn,
-            pressed && styles.actionBtnPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Share Wallet Address"
-        >
-          <Ionicons
-            name="share-outline"
-            size={22}
-            color={colors.text}
-            style={styles.actionIcon}
-          />
-          <Text style={styles.actionLabel} numberOfLines={2}>
-            Share Wallet Address
-          </Text>
-        </Pressable>
       </View>
     </Card>
   );
@@ -183,11 +229,41 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   username: {
     fontSize: 18,
     fontWeight: "600",
     color: colors.text,
+  },
+  usernamePlaceholder: {
+    color: colors.secondaryText,
+  },
+  pencilIcon: {
+    marginLeft: spacing.xs,
+  },
+  nameEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     marginBottom: spacing.xs,
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.text,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 12,
+  },
+  pencilBtn: {
+    padding: spacing.xs,
   },
   addressRow: {
     flexDirection: "row",

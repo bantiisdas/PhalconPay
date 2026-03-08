@@ -8,6 +8,7 @@ interface WalletState {
   searchHistory: string[];
   isDevnet: boolean;
   connectedPublicKey: string | null;
+  displayName: string;
 
   // Actions
   addFavorite: (address: string) => void;
@@ -17,6 +18,7 @@ interface WalletState {
   clearHistory: () => void;
   toggleNetwork: () => void;
   setConnectedPublicKey: (publicKey: string | null) => void;
+  setDisplayName: (name: string) => void;
 }
 
 export const useWalletStore = create<WalletState>()(
@@ -26,6 +28,7 @@ export const useWalletStore = create<WalletState>()(
       searchHistory: [],
       isDevnet: true,
       connectedPublicKey: null,
+      displayName: "",
 
       addFavorite: (address) =>
         set((state) => ({
@@ -60,6 +63,8 @@ export const useWalletStore = create<WalletState>()(
         set({
           connectedPublicKey: publicKey,
         }),
+
+      setDisplayName: (name) => set({ displayName: name.trim() }),
     }),
     { name: "wallet-storage", storage: createJSONStorage(() => mmkvStorage) },
   ),

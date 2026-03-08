@@ -1,88 +1,102 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from "react";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Card } from '@/components/ui/Card';
-import { colors } from '@/constants/colors';
-import { spacing } from '@/constants/spacing';
-
-export interface AssetItem {
-  id: string;
-  ticker: string;
-  amount: string;
-  fiatValue: string;
-  changePercent?: number;
-  iconType: 'sol' | 'usdc' | 'bonk' | 'jup';
-}
+import { Card } from "@/components/ui/Card";
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import {
+  getMintBySymbol,
+  getTokenBalanceItems,
+  type TokenIconType,
+} from "@/constants/tokens";
+import { useTokenIcons } from "@/hooks/useTokenIcons";
 
 export interface AssetListProps {
-  assets?: AssetItem[];
+  /** Symbol -> amount string. Missing tokens show "0". */
+  balances?: Partial<Record<string, string>>;
 }
 
-const DEFAULT_ASSETS: AssetItem[] = [
-  { id: '1', ticker: 'SOL', amount: '1.45 SOL', fiatValue: '$188.42', changePercent: 1.2, iconType: 'sol' },
-  { id: '2', ticker: 'USDC', amount: '500 USDC', fiatValue: '$500.00', iconType: 'usdc' },
-  { id: '3', ticker: 'BONK', amount: '1.2M BONK', fiatValue: '$32.11', changePercent: 0.8, iconType: 'bonk' },
-  { id: '4', ticker: 'JUP', amount: '85 JUP', fiatValue: '$48.95', changePercent: -0.5, iconType: 'jup' },
-];
+const ICON_STYLES: Record<TokenIconType, { bg: string }> = {
+  sol: { bg: colors.swap + "50" },
+  usdc: { bg: colors.primary + "50" },
+  usdt: { bg: "#26A17B50" },
+  bonk: { bg: colors.brandOrange + "50" },
+  jup: { bg: colors.success + "40" },
+  wif: { bg: "#E91E6350" },
+};
 
-function AssetIcon({ iconType }: { iconType: AssetItem['iconType'] }) {
-  const iconStyles: Record<AssetItem['iconType'], { bg: string }> = {
-    sol: { bg: colors.swap + '50' },
-    usdc: { bg: colors.primary + '50' },
-    bonk: { bg: colors.brandOrange + '50' },
-    jup: { bg: colors.success + '40' },
-  };
-  const { bg } = iconStyles[iconType];
-  if (iconType === 'sol') {
+const ICON_LETTER: Record<TokenIconType, string> = {
+  sol: "S",
+  usdc: "$",
+  usdt: "T",
+  bonk: "B",
+  jup: "J",
+  wif: "W",
+};
+
+/** RN Image does not support SVG or .link; use symbol for those or when load fails. */
+function shouldUseSymbolForIcon(iconUri: string | null | undefined): boolean {
+  if (!iconUri) return true;
+  const lower = iconUri.toLowerCase();
+  if (lower.endsWith(".svg") || lower.includes(".link")) return true;
+  return false;
+}
+
+function AssetIcon({
+  iconType,
+  iconUri,
+}: {
+  iconType: TokenIconType;
+  iconUri?: string | null;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const useSymbol = shouldUseSymbolForIcon(iconUri) || imageError;
+  const { bg } = ICON_STYLES[iconType];
+  const letter = ICON_LETTER[iconType];
+
+  if (iconUri && !useSymbol) {
     return (
       <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-        <Text style={styles.iconText}>S</Text>
-      </View>
-    );
-  }
-  if (iconType === 'usdc') {
-    return (
-      <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-        <Text style={styles.iconText}>$</Text>
-      </View>
-    );
-  }
-  if (iconType === 'bonk') {
-    return (
-      <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-        <Text style={styles.iconText}>B</Text>
+        <Image
+          source={{ uri: iconUri }}
+          style={styles.iconImage}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
       </View>
     );
   }
   return (
     <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-      <Text style={styles.iconText}>J</Text>
+      <Text style={styles.iconText}>{letter}</Text>
     </View>
   );
 }
 
-export function AssetList({ assets = DEFAULT_ASSETS }: AssetListProps) {
+export function AssetList({ balances }: AssetListProps) {
+  const items = getTokenBalanceItems(balances);
+  const iconByMint = useTokenIcons();
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
-      style={styles.scroll}>
-      {assets.map((asset) => (
-        <Card key={asset.id} padding="md" withMargin={false} style={styles.assetCard}>
-          <AssetIcon iconType={asset.iconType} />
-          <Text style={styles.amount} numberOfLines={1}>{asset.amount}</Text>
-          <Text style={styles.fiat}>{asset.fiatValue}</Text>
-          {asset.changePercent !== undefined ? (
-            <Text
-              style={[
-                styles.change,
-                asset.changePercent >= 0 ? styles.changePositive : styles.changeNegative,
-              ]}>
-              {asset.changePercent >= 0 ? '+' : ''}{asset.changePercent}%
+      style={styles.scroll}
+    >
+      {items.map((item) => {
+        const amount = Number(item.balance) === 0 ? "0" : item.balance;
+        const mint = getMintBySymbol(item.symbol);
+        const iconUri = mint ? iconByMint[mint] : null;
+        return (
+          <Card key={item.id} padding="md" withMargin={false} style={styles.assetCard}>
+            <AssetIcon iconType={item.iconType} iconUri={iconUri} />
+            <Text style={styles.amount} numberOfLines={1}>
+              {amount} {item.symbol}
             </Text>
-          ) : null}
-        </Card>
-      ))}
+          </Card>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -92,7 +106,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   scrollContent: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingRight: spacing.lg,
   },
   assetCard: {
@@ -104,34 +118,24 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: spacing.sm,
+    overflow: "hidden",
+  },
+  iconImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   iconText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   amount: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  fiat: {
-    fontSize: 12,
-    color: colors.secondaryText,
-    marginBottom: spacing.xs,
-  },
-  change: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  changePositive: {
-    color: colors.success,
-  },
-  changeNegative: {
-    color: colors.error,
   },
 });

@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-} from "react-native";
+import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 
 import { AssetList } from "@/components/AssetList";
 import { BalanceCard } from "@/components/BalanceCard";
@@ -19,7 +15,8 @@ import { useWallet } from "@/hooks/useWallet";
 
 /** Format SOL amount for display. */
 function formatSol(sol: number): string {
-  if (sol >= 1000) return sol.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (sol >= 1000)
+    return sol.toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (sol >= 1) return sol.toFixed(2);
   if (sol >= 0.01) return sol.toFixed(4);
   return sol.toFixed(6);
@@ -29,8 +26,11 @@ function formatSol(sol: number): string {
 const SOL_USD_ESTIMATE = 19;
 
 export default function HomeScreen() {
-  const { connected, getBalance } = useWallet();
+  const { connected, getBalance, getTokenBalances } = useWallet();
   const [balanceSol, setBalanceSol] = useState<number | null>(null);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
+    {},
+  );
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -38,14 +38,19 @@ export default function HomeScreen() {
     if (!connected || !getBalance) return;
     setBalanceLoading(true);
     try {
-      const sol = await getBalance();
+      const [sol, tokens] = await Promise.all([
+        getBalance(),
+        getTokenBalances?.() ?? Promise.resolve({}),
+      ]);
       setBalanceSol(sol);
+      setTokenBalances(tokens);
     } catch {
       setBalanceSol(null);
+      setTokenBalances({});
     } finally {
       setBalanceLoading(false);
     }
-  }, [connected, getBalance]);
+  }, [connected, getBalance, getTokenBalances]);
 
   useEffect(() => {
     if (connected) {
@@ -89,10 +94,19 @@ export default function HomeScreen() {
         <BalanceCard
           balance={balanceDisplay}
           label="Total Balance"
-          cryptoBreakdown={cryptoBreakdown}
+          // cryptoBreakdown={cryptoBreakdown}
           withMargin={false}
         />
-        <AssetList />
+        <AssetList
+          balances={{
+            SOL: connected && balanceSol !== null ? formatSol(balanceSol) : "0",
+            USDC: tokenBalances.USDC ?? "0",
+            USDT: tokenBalances.USDT ?? "0",
+            BONK: tokenBalances.BONK ?? "0",
+            JUP: tokenBalances.JUP ?? "0",
+            WIF: tokenBalances.WIF ?? "0",
+          }}
+        />
         <QuickActions />
         <FavoriteWallets />
         <RecentTransactions transactions={RECENT_TRANSACTIONS} />

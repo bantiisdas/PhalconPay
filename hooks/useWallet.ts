@@ -10,7 +10,13 @@ import {
   SystemProgram,
   Transaction,
 } from "@solana/web3.js";
+
+// SPL Token Program ID (avoid importing @solana/spl-token for Metro compatibility)
+const TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+);
 import { useCallback, useMemo, useState } from "react";
+import { AVAILABLE_TOKENS, TOKEN_INFO } from "../constants/tokens";
 import { useWalletStore } from "../store/wallet-store";
 // import {
 //   fromSmallestUnit,
@@ -56,7 +62,10 @@ export function useWallet() {
   }, [connectedPublicKey]);
 
   const cluster = isDevnet ? "devnet" : "mainnet-beta";
-  const connection = new Connection(clusterApiUrl(cluster), "confirmed");
+  const connection = useMemo(
+    () => new Connection(clusterApiUrl(cluster), "confirmed"),
+    [cluster]
+  );
 
   //Connect - Asking wallet to authorize
   const connect = useCallback(async () => {
@@ -91,12 +100,61 @@ export function useWallet() {
     setConnectedPublicKey(null);
   }, []);
 
-  //Getting Balance
+  //Getting Balance (native SOL)
   const getBalance = useCallback(async () => {
     if (!publicKey) return 0;
 
     const balance = await connection.getBalance(publicKey);
     return balance / LAMPORTS_PER_SOL;
+  }, [publicKey, connection]);
+
+  // SPL token balances (symbol -> amount string). SOL not included; use getBalance() for SOL.
+  const getTokenBalances = useCallback(async (): Promise<Record<string, string>> => {
+    const result: Record<string, string> = {};
+    const sums: Record<string, number> = {};
+    AVAILABLE_TOKENS.forEach((mint) => {
+      const info = TOKEN_INFO[mint];
+      if (info && info.symbol !== "SOL") {
+        result[info.symbol] = "0";
+        sums[info.symbol] = 0;
+      }
+    });
+    if (!publicKey) return result;
+
+    try {
+      const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+        programId: TOKEN_PROGRAM_ID,
+      });
+      const mintToSymbol = Object.fromEntries(
+        AVAILABLE_TOKENS.map((mint) => {
+          const info = TOKEN_INFO[mint];
+          return [mint, info?.symbol ?? ""];
+        }),
+      );
+      accounts.value.forEach(({ account }) => {
+        const parsed = account.data?.parsed;
+        if (!parsed?.info?.mint) return;
+        const symbol = mintToSymbol[parsed.info.mint];
+        if (!symbol || sums[symbol] === undefined) return;
+        const tokenAmount = parsed.info.tokenAmount;
+        const uiAmount = tokenAmount?.uiAmount ?? 0;
+        sums[symbol] += Number(uiAmount);
+      });
+      Object.keys(sums).forEach((symbol) => {
+        const v = sums[symbol];
+        if (v === 0) {
+          result[symbol] = "0";
+        } else {
+          result[symbol] =
+            v >= 1e6
+              ? v.toLocaleString(undefined, { maximumFractionDigits: 0 })
+              : v.toFixed(v >= 1 ? 2 : v >= 0.01 ? 4 : 6);
+        }
+      });
+    } catch {
+      // leave as 0
+    }
+    return result;
   }, [publicKey, connection]);
 
   //Sending SOL
@@ -338,6 +396,7 @@ export function useWallet() {
     connected: !!publicKey,
     connecting,
     getBalance,
+    getTokenBalances,
     sendSol,
     sending,
     //fetchSwapQuote,

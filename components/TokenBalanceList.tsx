@@ -3,31 +3,41 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
+import {
+  type TokenBalanceItem,
+  type TokenIconType,
+  DEFAULT_TOKEN_BALANCE_ITEMS,
+} from '@/constants/tokens';
 
-export interface TokenBalanceItem {
-  id: string;
-  symbol: string;
-  name: string;
-  balance: string;
-  iconType: 'sol' | 'usdc' | 'bonk' | 'jup';
-}
+export type { TokenBalanceItem };
 
 export interface TokenBalanceListProps {
   tokens?: TokenBalanceItem[];
 }
 
-const ICON_BG: Record<TokenBalanceItem['iconType'], string> = {
+const ICON_BG: Record<TokenIconType, string> = {
   sol: colors.swap + '50',
   usdc: colors.primary + '50',
+  usdt: '#26A17B50',
   bonk: colors.brandOrange + '50',
   jup: colors.success + '40',
+  wif: '#E91E6350',
 };
 
-function TokenIcon({ iconType }: { iconType: TokenBalanceItem['iconType'] }) {
-  const symbol = iconType === 'sol' ? 'S' : iconType === 'usdc' ? '$' : iconType === 'bonk' ? 'B' : 'J';
+const ICON_LETTER: Record<TokenIconType, string> = {
+  sol: 'S',
+  usdc: '$',
+  usdt: 'T',
+  bonk: 'B',
+  jup: 'J',
+  wif: 'W',
+};
+
+function TokenIcon({ iconType }: { iconType: TokenIconType }) {
+  const letter = ICON_LETTER[iconType] ?? iconType.charAt(0).toUpperCase();
   return (
     <View style={[styles.iconCircle, { backgroundColor: ICON_BG[iconType] }]}>
-      <Text style={styles.iconText}>{symbol}</Text>
+      <Text style={styles.iconText}>{letter}</Text>
     </View>
   );
 }
@@ -50,14 +60,9 @@ function TokenBalanceRow({
   );
 }
 
-const DEFAULT_TOKENS: TokenBalanceItem[] = [
-  { id: 'sol', symbol: 'SOL', name: 'Solana', balance: '1.45', iconType: 'sol' },
-  { id: 'usdc', symbol: 'USDC', name: 'USD Coin', balance: '500', iconType: 'usdc' },
-  { id: 'bonk', symbol: 'BONK', name: 'Bonk', balance: '1.2M', iconType: 'bonk' },
-  { id: 'jup', symbol: 'JUP', name: 'Jupiter', balance: '85', iconType: 'jup' },
-];
-
-export function TokenBalanceList({ tokens = DEFAULT_TOKENS }: TokenBalanceListProps) {
+export function TokenBalanceList({
+  tokens = DEFAULT_TOKEN_BALANCE_ITEMS,
+}: TokenBalanceListProps) {
   return (
     <Card padding={0} withMargin={false}>
       {tokens.map((token, index) => (

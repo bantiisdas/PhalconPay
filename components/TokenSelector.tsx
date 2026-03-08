@@ -4,13 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
+import {
+  type TokenOption,
+  DEFAULT_TOKEN_OPTIONS,
+} from '@/constants/tokens';
 
-export interface TokenOption {
-  id: string;
-  symbol: string;
-  name?: string;
-  balance?: string;
-}
+export type { TokenOption };
 
 export interface TokenSelectorProps {
   selected: TokenOption;
@@ -20,17 +19,10 @@ export interface TokenSelectorProps {
   label?: string;
 }
 
-const DEFAULT_TOKENS: TokenOption[] = [
-  { id: 'usdc', symbol: 'USDC', name: 'USD Coin', balance: '500.00' },
-  { id: 'sol', symbol: 'SOL', name: 'Solana', balance: '1.45' },
-  { id: 'bonk', symbol: 'BONK', name: 'Bonk', balance: '1.2M' },
-  { id: 'jup', symbol: 'JUP', name: 'Jupiter', balance: '85' },
-];
-
 export function TokenSelector({
   selected,
   onPress,
-  options = DEFAULT_TOKENS,
+  options = DEFAULT_TOKEN_OPTIONS,
   label = 'Pay With',
 }: TokenSelectorProps) {
   return (

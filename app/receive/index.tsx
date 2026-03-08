@@ -22,16 +22,10 @@ import { Card } from '@/components/ui/Card';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
+import { RECEIVE_TOKEN_CHIPS } from '@/constants/tokens';
 
 const WALLET_ADDRESS = '9xGk7PLmFfXqVvW9W1mZgY4H2KjS7';
 const SHORTENED_ADDRESS = '9xGk...8KJ';
-
-const RECEIVE_TOKENS = [
-  { id: 'sol', symbol: 'SOL', icon: 'S' },
-  { id: 'usdc', symbol: 'USDC', icon: '$' },
-  { id: 'bonk', symbol: 'BONK', icon: 'B' },
-  { id: 'jup', symbol: 'JUP', icon: 'J' },
-];
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -49,7 +43,8 @@ export default function ReceiveScreen() {
   const [note, setNote] = useState('');
   const [addressCopied, setAddressCopied] = useState(false);
 
-  const token = RECEIVE_TOKENS.find((t) => t.id === selectedToken)?.symbol ?? 'USDC';
+  const token =
+    RECEIVE_TOKEN_CHIPS.find((t) => t.id === selectedToken)?.symbol ?? 'USDC';
   const amount = requestAmount.trim() || '10';
   const qrValue = `falconpay://pay?address=${WALLET_ADDRESS}&token=${token}&amount=${amount}`;
 
@@ -149,7 +144,7 @@ export default function ReceiveScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tokenRow}
             style={styles.tokenScroll}>
-            {RECEIVE_TOKENS.map((token) => {
+            {RECEIVE_TOKEN_CHIPS.map((token) => {
               const isSelected = selectedToken === token.id;
               return (
                 <Pressable

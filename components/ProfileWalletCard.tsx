@@ -1,17 +1,23 @@
-import * as Clipboard from 'expo-clipboard';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Card } from '@/components/ui/Card';
-import { colors } from '@/constants/colors';
-import { spacing } from '@/constants/spacing';
+import { Card } from "@/components/ui/Card";
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import { useWallet } from "@/hooks/useWallet";
 
 export interface ProfileWalletCardProps {
   username?: string;
-  address: string;
+
   shortened?: string;
+  connected: boolean;
+  connecting: boolean;
+  publicKey: string | null;
+  onConnect: () => void;
+  onDisconnect: () => void;
 }
 
 function shortenAddress(address: string): string {
@@ -20,27 +26,24 @@ function shortenAddress(address: string): string {
 }
 
 export function ProfileWalletCard({
-  username = 'Rahul',
-  address,
-  shortened = shortenAddress(address),
+  username = "Rahul",
+  connected,
+  connecting,
+  publicKey,
+  onConnect,
+  onDisconnect,
 }: ProfileWalletCardProps) {
   const [copied, setCopied] = useState(false);
   const router = useRouter();
+  const wallet = useWallet();
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(address);
+    await Clipboard.setStringAsync(publicKey ?? "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const initial = username.charAt(0).toUpperCase();
-
-  const actions = [
-    { id: 'connect', label: 'Connect Wallet', icon: 'wallet-outline' as const, color: colors.success, onPress: () => {} },
-    { id: 'disconnect', label: 'Disconnect Wallet', icon: 'log-out-outline' as const, color: colors.error, onPress: () => {} },
-    { id: 'qr', label: 'Generate QR Code', icon: 'qr-code-outline' as const, color: colors.text, onPress: () => router.push('/receive') },
-    { id: 'share', label: 'Share Wallet Address', icon: 'share-outline' as const, color: colors.text, onPress: () => {} },
-  ];
 
   return (
     <Card padding="lg" withMargin={false}>
@@ -52,15 +55,19 @@ export function ProfileWalletCard({
           <Text style={styles.username}>{username}</Text>
           <View style={styles.addressRow}>
             <Text style={styles.address} selectable numberOfLines={1}>
-              {shortened}
+              {shortenAddress(publicKey ?? "")}
             </Text>
             <Pressable
               onPress={handleCopy}
-              style={({ pressed }) => [styles.copyBtn, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.copyBtn,
+                pressed && styles.pressed,
+              ]}
               accessibilityRole="button"
-              accessibilityLabel={copied ? 'Copied' : 'Copy wallet address'}>
+              accessibilityLabel={copied ? "Copied" : "Copy wallet address"}
+            >
               <Ionicons
-                name={copied ? 'checkmark-circle' : 'copy-outline'}
+                name={copied ? "checkmark-circle" : "copy-outline"}
                 size={20}
                 color={copied ? colors.success : colors.text}
               />
@@ -69,19 +76,84 @@ export function ProfileWalletCard({
         </View>
       </View>
       <View style={styles.actionsRow}>
-        {actions.map((action) => (
-          <Pressable
-            key={action.id}
-            onPress={action.onPress}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}>
-            <Ionicons name={action.icon} size={22} color={action.color} style={styles.actionIcon} />
-            <Text style={styles.actionLabel} numberOfLines={2}>
-              {action.label}
-            </Text>
-          </Pressable>
-        ))}
+        <Pressable
+          onPress={() => {
+            wallet.connect();
+          }}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Connect Wallet"
+        >
+          <Ionicons
+            name="wallet-outline"
+            size={22}
+            color={colors.success}
+            style={styles.actionIcon}
+          />
+          <Text style={styles.actionLabel} numberOfLines={2}>
+            Connect Wallet
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => {}}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Disconnect Wallet"
+        >
+          <Ionicons
+            name="log-out-outline"
+            size={22}
+            color={colors.error}
+            style={styles.actionIcon}
+          />
+          <Text style={styles.actionLabel} numberOfLines={2}>
+            Disconnect Wallet
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push("/receive")}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Generate QR Code"
+        >
+          <Ionicons
+            name="qr-code-outline"
+            size={22}
+            color={colors.text}
+            style={styles.actionIcon}
+          />
+          <Text style={styles.actionLabel} numberOfLines={2}>
+            Generate QR Code
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => {}}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Share Wallet Address"
+        >
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={colors.text}
+            style={styles.actionIcon}
+          />
+          <Text style={styles.actionLabel} numberOfLines={2}>
+            Share Wallet Address
+          </Text>
+        </Pressable>
       </View>
     </Card>
   );
@@ -89,22 +161,22 @@ export function ProfileWalletCard({
 
 const styles = StyleSheet.create({
   profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: spacing.lg,
   },
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary + '30',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.primary + "30",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: spacing.lg,
   },
   avatarText: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   info: {
@@ -113,20 +185,20 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: spacing.xs,
   },
   addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
   address: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.secondaryText,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   copyBtn: {
     padding: spacing.xs,
@@ -135,8 +207,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
   actionBtn: {
@@ -144,9 +216,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionBtnPressed: {
     opacity: 0.85,
@@ -156,8 +228,8 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

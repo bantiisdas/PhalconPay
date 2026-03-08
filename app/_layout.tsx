@@ -1,3 +1,5 @@
+import "../src/polyfills";
+
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
@@ -6,11 +8,14 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect } from "react";
+import { LogBox } from "react-native";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import "../src/polyfills";
 
 import { colors } from "@/constants/colors";
+
+// Suppress "Unable to activate keep awake" on Android (e.g. from expo-camera).
+LogBox.ignoreLogs(["Unable to activate keep awake"]);
 
 SplashScreen.preventAutoHideAsync();
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
+import { SvgUri } from "react-native-svg";
 
 import { Card } from "@/components/ui/Card";
 import { colors } from "@/constants/colors";
@@ -37,11 +38,12 @@ const ICON_LETTER: Record<TokenIconType, string> = {
   wif: "W",
 };
 
-function shouldUseSymbolForIcon(iconUri: string | null | undefined): boolean {
-  if (!iconUri) return true;
-  const lower = iconUri.toLowerCase();
-  if (lower.endsWith(".svg") || lower.includes(".link")) return true;
-  return false;
+function isSvgUri(uri: string | null | undefined): boolean {
+  return !!uri && uri.toLowerCase().endsWith(".svg");
+}
+
+function isUnusableImageUri(uri: string | null | undefined): boolean {
+  return !!uri && uri.toLowerCase().includes(".link");
 }
 
 function TokenIcon({
@@ -52,24 +54,38 @@ function TokenIcon({
   iconUri?: string | null;
 }) {
   const [imageError, setImageError] = useState(false);
-  const useSymbol = shouldUseSymbolForIcon(iconUri) || imageError;
+  const [svgError, setSvgError] = useState(false);
   const letter = ICON_LETTER[iconType] ?? iconType.charAt(0).toUpperCase();
 
-  if (iconUri && !useSymbol) {
+  if (!iconUri || imageError || svgError || isUnusableImageUri(iconUri)) {
     return (
       <View style={[styles.iconCircle, { backgroundColor: ICON_BG[iconType] }]}>
-        <Image
-          source={{ uri: iconUri }}
-          style={styles.iconImage}
-          resizeMode="cover"
-          onError={() => setImageError(true)}
+        <Text style={styles.iconText}>{letter}</Text>
+      </View>
+    );
+  }
+
+  if (isSvgUri(iconUri)) {
+    return (
+      <View style={[styles.iconCircle, { backgroundColor: ICON_BG[iconType] }]}>
+        <SvgUri
+          width={40}
+          height={40}
+          uri={iconUri}
+          onError={() => setSvgError(true)}
         />
       </View>
     );
   }
+
   return (
     <View style={[styles.iconCircle, { backgroundColor: ICON_BG[iconType] }]}>
-      <Text style={styles.iconText}>{letter}</Text>
+      <Image
+        source={{ uri: iconUri }}
+        style={styles.iconImage}
+        resizeMode="cover"
+        onError={() => setImageError(true)}
+      />
     </View>
   );
 }

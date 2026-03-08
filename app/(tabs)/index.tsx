@@ -10,7 +10,10 @@ import { RecentTransactions } from "@/components/RecentTransactions";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
-import { RECENT_TRANSACTIONS } from "@/constants/transactions";
+import {
+  useTransactionsStore,
+  getRecentTransactionRows,
+} from "@/store/transactionsStore";
 import { useWallet } from "@/hooks/useWallet";
 
 /** Format SOL amount for display. */
@@ -25,8 +28,12 @@ function formatSol(sol: number): string {
 /** Rough USD value (e.g. for display). Replace with real price feed later. */
 const SOL_USD_ESTIMATE = 19;
 
+const RECENT_LIMIT = 8;
+
 export default function HomeScreen() {
   const { connected, getBalance, getTokenBalances } = useWallet();
+  const transactions = useTransactionsStore((s) => s.transactions);
+  const recentTransactions = getRecentTransactionRows(transactions, RECENT_LIMIT);
   const [balanceSol, setBalanceSol] = useState<number | null>(null);
   const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
     {},
@@ -109,7 +116,7 @@ export default function HomeScreen() {
         />
         <QuickActions />
         <FavoriteWallets />
-        <RecentTransactions transactions={RECENT_TRANSACTIONS} />
+        <RecentTransactions transactions={recentTransactions} />
       </ScrollView>
     </ScreenContainer>
   );

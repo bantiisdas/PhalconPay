@@ -3,12 +3,18 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
+import { WalletAvatar } from '@/components/WalletAvatar';
+import type { FavoriteWallet } from '@/store/favoritesStore';
 
 export interface RecipientCardProps {
   address: string;
   label?: string;
   /** Display name or short label (e.g. "Alice"). Falls back to truncated address. */
   name?: string;
+  /** When set, show favorite wallet icon (from WalletAvatar) instead of initial letter. */
+  avatarType?: FavoriteWallet['avatarType'];
+  /** Background color for the avatar when using an icon. */
+  avatarColor?: string;
   /** When true and address is "new", show an editable TextInput for entering wallet address. */
   editable?: boolean;
   /** Controlled value for the address input when editable. */
@@ -27,6 +33,8 @@ export function RecipientCard({
   address,
   label = 'To',
   name,
+  avatarType,
+  avatarColor,
   editable = false,
   inputValue = '',
   onAddressChange,
@@ -34,26 +42,47 @@ export function RecipientCard({
   const isEnterMode = address === 'new' && editable && onAddressChange != null;
   const displayName = name || truncateAddress(address);
   const showAddress = address && address !== 'new' && address.length > 10;
+  const showFavoriteIcon = avatarType != null || avatarColor != null;
 
   if (isEnterMode) {
     return (
       <Card padding="lg" withMargin={false} style={styles.card}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
         <View style={styles.row}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>?</Text>
+          {showFavoriteIcon ? (
+            <View style={styles.avatarWrap}>
+              <WalletAvatar
+                wallet={{
+                  name: displayName,
+                  avatarType,
+                  avatarColor,
+                }}
+                size={48}
+              />
+            </View>
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>?</Text>
+            </View>
+          )}
+          <View style={styles.inputColumn}>
+            {name ? (
+              <Text style={styles.name} numberOfLines={1}>
+                {name}
+              </Text>
+            ) : null}
+            <TextInput
+              style={[styles.addressInput, name ? styles.addressInputWithName : null]}
+              value={inputValue}
+              onChangeText={onAddressChange}
+              placeholder="Enter wallet address"
+              placeholderTextColor={colors.secondaryText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+            />
           </View>
-          <TextInput
-            style={styles.addressInput}
-            value={inputValue}
-            onChangeText={onAddressChange}
-            placeholder="Enter wallet address"
-            placeholderTextColor={colors.secondaryText}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="off"
-            spellCheck={false}
-          />
         </View>
       </Card>
     );
@@ -63,11 +92,24 @@ export function RecipientCard({
     <Card padding="lg" withMargin={false} style={styles.card}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.row}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {displayName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        {showFavoriteIcon ? (
+          <View style={styles.avatarWrap}>
+            <WalletAvatar
+              wallet={{
+                name: displayName,
+                avatarType,
+                avatarColor,
+              }}
+              size={48}
+            />
+          </View>
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {displayName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
         <View style={styles.info}>
           <Text style={styles.name} numberOfLines={1}>
             {displayName}
@@ -107,10 +149,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.lg,
   },
+  avatarWrap: {
+    marginRight: spacing.lg,
+  },
   avatarText: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
+  },
+  inputColumn: {
+    flex: 1,
+    minWidth: 0,
   },
   info: {
     flex: 1,
@@ -134,5 +183,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
     minHeight: 48,
+  },
+  addressInputWithName: {
+    paddingTop: spacing.xs,
+    minHeight: 40,
   },
 });

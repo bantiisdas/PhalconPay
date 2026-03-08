@@ -1,8 +1,8 @@
-import * as Clipboard from 'expo-clipboard';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
-import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,19 +13,22 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
+} from "react-native";
+import QRCode from "react-native-qrcode-svg";
 
-import { ReceiveHeader } from '@/components/ReceiveHeader';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
-import { colors } from '@/constants/colors';
-import { spacing } from '@/constants/spacing';
-import { RECEIVE_TOKEN_CHIPS } from '@/constants/tokens';
+import { ReceiveHeader } from "@/components/ReceiveHeader";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { colors } from "@/constants/colors";
+import { spacing } from "@/constants/spacing";
+import { RECEIVE_TOKEN_CHIPS } from "@/constants/tokens";
+import { useWallet } from "@/hooks/useWallet";
 
-const WALLET_ADDRESS = '9xGk7PLmFfXqVvW9W1mZgY4H2KjS7';
-const SHORTENED_ADDRESS = '9xGk...8KJ';
+function shortenAddress(addr: string): string {
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+}
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -38,18 +41,19 @@ function base64ToUint8Array(base64: string): Uint8Array {
 
 export default function ReceiveScreen() {
   const qrRef = useRef<any>(null);
-  const [selectedToken, setSelectedToken] = useState('usdc');
-  const [requestAmount, setRequestAmount] = useState('');
-  const [note, setNote] = useState('');
+  const wallet = useWallet();
+  const walletAddress = wallet.publicKey?.toBase58() ?? "";
+  const [selectedToken, setSelectedToken] = useState("usdc");
+  const [requestAmount, setRequestAmount] = useState("");
+  const [note, setNote] = useState("");
   const [addressCopied, setAddressCopied] = useState(false);
 
-  const token =
-    RECEIVE_TOKEN_CHIPS.find((t) => t.id === selectedToken)?.symbol ?? 'USDC';
-  const amount = requestAmount.trim() || '10';
-  const qrValue = `falconpay://pay?address=${WALLET_ADDRESS}&token=${token}&amount=${amount}`;
+  // QR contains only wallet address (no token/amount yet; Solana Pay later)
+  const qrValue = walletAddress || "Connect wallet to show QR";
 
   const handleCopyAddress = async () => {
-    await Clipboard.setStringAsync(WALLET_ADDRESS);
+    if (!walletAddress) return;
+    await Clipboard.setStringAsync(walletAddress);
     setAddressCopied(true);
     setTimeout(() => setAddressCopied(false), 2000);
   };
@@ -58,42 +62,56 @@ export default function ReceiveScreen() {
     if (!qrRef.current) return;
     const available = await Sharing.isAvailableAsync();
     if (!available) {
-      Alert.alert('Sharing unavailable', 'Sharing is not available on this device.');
+      Alert.alert(
+        "Sharing unavailable",
+        "Sharing is not available on this device.",
+      );
       return;
     }
     qrRef.current.toDataURL(async (dataUrl: string) => {
       try {
-        const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
         const bytes = base64ToUint8Array(base64);
-        const file = new File(Paths.cache, 'falconpay-qr.png');
+        const file = new File(Paths.cache, "falconpay-qr.png");
         file.create({ overwrite: true });
         file.write(bytes);
         const shareUri =
-          Platform.OS === 'android' && 'contentUri' in file && (file as { contentUri?: string }).contentUri
+          Platform.OS === "android" &&
+          "contentUri" in file &&
+          (file as { contentUri?: string }).contentUri
             ? (file as { contentUri: string }).contentUri
             : file.uri;
         await Sharing.shareAsync(shareUri, {
-          dialogTitle: 'Share QR Code',
-          mimeType: 'image/png',
+          dialogTitle: "Share QR Code",
+          mimeType: "image/png",
         });
       } catch (e) {
-        Alert.alert('Share failed', e instanceof Error ? e.message : 'Could not share QR code.');
+        Alert.alert(
+          "Share failed",
+          e instanceof Error ? e.message : "Could not share QR code.",
+        );
       }
     });
   };
 
   return (
-    <ScreenContainer edges={['top', 'bottom']} paddingHorizontal="lg" paddingBottom="xl">
+    <ScreenContainer
+      edges={["top", "bottom"]}
+      paddingHorizontal="lg"
+      paddingBottom="xl"
+    >
       <ReceiveHeader />
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}>
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+        >
           <Card padding="lg" withMargin={false} style={styles.qrCard}>
             <View style={styles.qrWrap}>
               <QRCode
@@ -101,21 +119,28 @@ export default function ReceiveScreen() {
                   qrRef.current = c;
                 }}
                 value={qrValue}
-                size={200}
+                size={240}
                 color="#000"
                 backgroundColor="#FFF"
               />
             </View>
             <Text style={styles.walletName}>FalconPay</Text>
-            <Text style={styles.shortAddress}>Address: {SHORTENED_ADDRESS}</Text>
+            <Text style={styles.shortAddress}>
+              Address: {walletAddress ? shortenAddress(walletAddress) : "—"}
+            </Text>
             <View style={styles.qrActions}>
               <Pressable
                 onPress={handleCopyAddress}
-                style={({ pressed }) => [styles.qrActionBtn, pressed && styles.pressed]}
+                disabled={!walletAddress}
+                style={({ pressed }) => [
+                  styles.qrActionBtn,
+                  pressed && styles.pressed,
+                ]}
                 accessibilityRole="button"
-                accessibilityLabel={addressCopied ? 'Copied' : 'Copy Address'}>
+                accessibilityLabel={addressCopied ? "Copied" : "Copy Address"}
+              >
                 <Ionicons
-                  name={addressCopied ? 'checkmark-circle' : 'copy-outline'}
+                  name={addressCopied ? "checkmark-circle" : "copy-outline"}
                   size={20}
                   color={addressCopied ? colors.success : colors.text}
                 />
@@ -123,15 +148,20 @@ export default function ReceiveScreen() {
                   style={[
                     styles.qrActionLabel,
                     addressCopied && styles.qrActionLabelCopied,
-                  ]}>
-                  {addressCopied ? 'Copied' : 'Copy Address'}
+                  ]}
+                >
+                  {addressCopied ? "Copied" : "Copy Address"}
                 </Text>
               </Pressable>
               <Pressable
                 onPress={handleShareQR}
-                style={({ pressed }) => [styles.qrActionBtn, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.qrActionBtn,
+                  pressed && styles.pressed,
+                ]}
                 accessibilityRole="button"
-                accessibilityLabel="Share QR">
+                accessibilityLabel="Share QR"
+              >
                 <Ionicons name="share-outline" size={20} color={colors.text} />
                 <Text style={styles.qrActionLabel}>Share QR</Text>
               </Pressable>
@@ -143,7 +173,8 @@ export default function ReceiveScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tokenRow}
-            style={styles.tokenScroll}>
+            style={styles.tokenScroll}
+          >
             {RECEIVE_TOKEN_CHIPS.map((token) => {
               const isSelected = selectedToken === token.id;
               return (
@@ -155,13 +186,15 @@ export default function ReceiveScreen() {
                     isSelected && styles.tokenChipSelected,
                   ]}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}>
+                  accessibilityState={{ selected: isSelected }}
+                >
                   <Text style={styles.tokenChipSymbol}>{token.icon}</Text>
                   <Text
                     style={[
                       styles.tokenChipLabel,
                       isSelected && styles.tokenChipLabelSelected,
-                    ]}>
+                    ]}
+                  >
                     {token.symbol}
                   </Text>
                 </Pressable>
@@ -172,7 +205,7 @@ export default function ReceiveScreen() {
           <Text style={styles.inputLabel}>Request Amount (optional)</Text>
           <TextInput
             style={styles.input}
-            placeholder={`10.00 ${selectedToken.toUpperCase()} (optional)`}
+            placeholder={`10.00 ${RECEIVE_TOKEN_CHIPS.find((t) => t.id === selectedToken)?.symbol ?? "USDC"} (optional)`}
             placeholderTextColor={colors.secondaryText}
             value={requestAmount}
             onChangeText={setRequestAmount}
@@ -181,7 +214,11 @@ export default function ReceiveScreen() {
 
           <Text style={styles.inputLabel}>Add Note (optional)</Text>
           <View style={styles.noteInputWrap}>
-            <Ionicons name="document-text-outline" size={20} color={colors.secondaryText} />
+            <Ionicons
+              name="document-text-outline"
+              size={20}
+              color={colors.secondaryText}
+            />
             <TextInput
               style={styles.noteInput}
               placeholder="Coffee payment ☕"
@@ -193,13 +230,14 @@ export default function ReceiveScreen() {
 
           <Text style={styles.inputLabel}>Wallet Address</Text>
           <Text style={styles.fullAddress} selectable>
-            {WALLET_ADDRESS}
+            {walletAddress || "Connect wallet to see address"}
           </Text>
 
           <Button
-            title={addressCopied ? 'Copied' : 'Copy Address'}
+            title={addressCopied ? "Copied" : "Copy Address"}
             onPress={handleCopyAddress}
             fullWidth
+            disabled={!walletAddress}
             style={[styles.ctaButton, addressCopied && styles.ctaButtonCopied]}
           />
         </ScrollView>
@@ -220,17 +258,17 @@ const styles = StyleSheet.create({
   },
   qrCard: {
     marginBottom: spacing.xl,
-    alignItems: 'center',
+    alignItems: "center",
   },
   qrWrap: {
     padding: spacing.md,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderRadius: 16,
     marginBottom: spacing.md,
   },
   walletName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: spacing.xs,
   },
@@ -240,24 +278,24 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   qrActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.md,
   },
   qrActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
   pressed: {
     opacity: 0.85,
   },
   qrActionLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   qrActionLabelCopied: {
@@ -265,7 +303,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -275,12 +313,12 @@ const styles = StyleSheet.create({
   },
   tokenRow: {
     paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   tokenChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.xs,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -294,16 +332,16 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    textAlign: 'center',
+    backgroundColor: "rgba(255,255,255,0.3)",
+    textAlign: "center",
     lineHeight: 24,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
   },
   tokenChipLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   tokenChipLabelSelected: {
@@ -311,7 +349,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.text,
     marginBottom: spacing.sm,
   },
@@ -325,8 +363,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   noteInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -343,7 +381,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     marginBottom: spacing.xl,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   ctaButton: {
     marginTop: spacing.sm,

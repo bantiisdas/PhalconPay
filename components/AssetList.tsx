@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SvgUri } from "react-native-svg";
 
 import { Card } from "@/components/ui/Card";
 import { colors } from "@/constants/colors";
@@ -34,12 +35,13 @@ const ICON_LETTER: Record<TokenIconType, string> = {
   wif: "W",
 };
 
-/** RN Image does not support SVG or .link; use symbol for those or when load fails. */
-function shouldUseSymbolForIcon(iconUri: string | null | undefined): boolean {
-  if (!iconUri) return true;
-  const lower = iconUri.toLowerCase();
-  if (lower.endsWith(".svg") || lower.includes(".link")) return true;
-  return false;
+function isSvgUri(uri: string | null | undefined): boolean {
+  return !!uri && uri.toLowerCase().endsWith(".svg");
+}
+
+/** .link URLs don't load in Image; use symbol. */
+function isUnusableImageUri(uri: string | null | undefined): boolean {
+  return !!uri && uri.toLowerCase().includes(".link");
 }
 
 function AssetIcon({
@@ -50,25 +52,39 @@ function AssetIcon({
   iconUri?: string | null;
 }) {
   const [imageError, setImageError] = useState(false);
-  const useSymbol = shouldUseSymbolForIcon(iconUri) || imageError;
+  const [svgError, setSvgError] = useState(false);
   const { bg } = ICON_STYLES[iconType];
   const letter = ICON_LETTER[iconType];
 
-  if (iconUri && !useSymbol) {
+  if (!iconUri || imageError || svgError || isUnusableImageUri(iconUri)) {
     return (
       <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-        <Image
-          source={{ uri: iconUri }}
-          style={styles.iconImage}
-          resizeMode="cover"
-          onError={() => setImageError(true)}
+        <Text style={styles.iconText}>{letter}</Text>
+      </View>
+    );
+  }
+
+  if (isSvgUri(iconUri)) {
+    return (
+      <View style={[styles.iconCircle, { backgroundColor: bg }]}>
+        <SvgUri
+          width={40}
+          height={40}
+          uri={iconUri}
+          onError={() => setSvgError(true)}
         />
       </View>
     );
   }
+
   return (
     <View style={[styles.iconCircle, { backgroundColor: bg }]}>
-      <Text style={styles.iconText}>{letter}</Text>
+      <Image
+        source={{ uri: iconUri }}
+        style={styles.iconImage}
+        resizeMode="cover"
+        onError={() => setImageError(true)}
+      />
     </View>
   );
 }
@@ -89,7 +105,12 @@ export function AssetList({ balances }: AssetListProps) {
         const mint = getMintBySymbol(item.symbol);
         const iconUri = mint ? iconByMint[mint] : null;
         return (
-          <Card key={item.id} padding="md" withMargin={false} style={styles.assetCard}>
+          <Card
+            key={item.id}
+            padding="md"
+            withMargin={false}
+            style={styles.assetCard}
+          >
             <AssetIcon iconType={item.iconType} iconUri={iconUri} />
             <Text style={styles.amount} numberOfLines={1}>
               {amount} {item.symbol}

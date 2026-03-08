@@ -9,22 +9,34 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
 } from "@solana/web3.js";
+
+function getRpcEndpoint(isDevnet: boolean): string {
+  const mainnet = process.env.EXPO_PUBLIC_ALCHAMY_API_URL;
+  const devnet = process.env.EXPO_PUBLIC_ALCHAMY_DEVNET_API_URL;
+  if (isDevnet && devnet) return devnet;
+  if (!isDevnet && mainnet) return mainnet;
+  return clusterApiUrl(isDevnet ? "devnet" : "mainnet-beta");
+}
+import { useCallback, useMemo, useState } from "react";
+import { AVAILABLE_TOKENS, TOKEN_INFO } from "../constants/tokens";
+import { sendSplToken } from "../services/splTransfer";
+import { buildSwapAndSendTransaction } from "../services/swapAndSend";
+import { useWalletStore } from "../store/wallet-store";
 
 // SPL Token Program ID (avoid importing @solana/spl-token for Metro compatibility)
 const TOKEN_PROGRAM_ID = new PublicKey(
-  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
 );
-import { useCallback, useMemo, useState } from "react";
-import { AVAILABLE_TOKENS, TOKEN_INFO } from "../constants/tokens";
-import { useWalletStore } from "../store/wallet-store";
-// import {
-//   fromSmallestUnit,
-//   getSwapQuote,
-//   getSwapTransaction,
-//   QuoteResponse,
-//   toSmallestUnit,
-// } from "../services/jupiter";
+import {
+  fromSmallestUnit,
+  getSwapQuote,
+  getSwapQuoteExactOut,
+  getSwapTransaction,
+  QuoteResponse,
+  toSmallestUnit,
+} from "../services/jupiter";
 
 const APP_IDENTITY = {
   name: "SolScan",
@@ -45,7 +57,7 @@ export function useWallet() {
 
   const [swaping, setSwaping] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  //const [quotedata, setQuotedata] = useState<QuoteResponse | null>(null);
+  const [quotedata, setQuotedata] = useState<QuoteResponse | null>(null);
 
   const isDevnet = useWalletStore((s) => s.isDevnet);
   const connectedPublicKey = useWalletStore((s) => s.connectedPublicKey);
@@ -63,8 +75,8 @@ export function useWallet() {
 
   const cluster = isDevnet ? "devnet" : "mainnet-beta";
   const connection = useMemo(
-    () => new Connection(clusterApiUrl(cluster), "confirmed"),
-    [cluster]
+    () => new Connection(getRpcEndpoint(isDevnet), "confirmed"),
+    [isDevnet],
   );
 
   //Connect - Asking wallet to authorize
@@ -109,7 +121,9 @@ export function useWallet() {
   }, [publicKey, connection]);
 
   // SPL token balances (symbol -> amount string). SOL not included; use getBalance() for SOL.
-  const getTokenBalances = useCallback(async (): Promise<Record<string, string>> => {
+  const getTokenBalances = useCallback(async (): Promise<
+    Record<string, string>
+  > => {
     const result: Record<string, string> = {};
     const sums: Record<string, number> = {};
     AVAILABLE_TOKENS.forEach((mint) => {
@@ -122,9 +136,12 @@ export function useWallet() {
     if (!publicKey) return result;
 
     try {
-      const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-        programId: TOKEN_PROGRAM_ID,
-      });
+      const accounts = await connection.getParsedTokenAccountsByOwner(
+        publicKey,
+        {
+          programId: TOKEN_PROGRAM_ID,
+        },
+      );
       const mintToSymbol = Object.fromEntries(
         AVAILABLE_TOKENS.map((mint) => {
           const info = TOKEN_INFO[mint];
@@ -249,6 +266,7 @@ export function useWallet() {
         return signature;
       } catch (error: any) {
         console.log(error.message);
+        throw error;
       } finally {
         setSending(false);
       }
@@ -256,138 +274,337 @@ export function useWallet() {
     [publicKey, connection, cluster],
   );
 
-  //Fetch Swap Quote
-  //   const fetchSwapQuote = useCallback(
-  //     async (
-  //       inputMint: string,
-  //       outputMint: string,
-  //       inputAmount: number,
-  //       inputDecimals: number,
-  //     ) => {
-  //       if (isDevnet) {
-  //         setQuotedata(null);
-  //         return null;
-  //       }
+  const sendToken = useCallback(
+    async (
+      recipientAddress: string,
+      mintAddress: string,
+      amount: number,
+      decimals: number,
+    ) => {
+      if (!publicKey) throw new Error("Wallet not Connected");
 
-  //       setQuoteLoading(true);
-  //       try {
-  //         const amountInSmallestUnit = toSmallestUnit(inputAmount, inputDecimals);
-  //         const quote = await getSwapQuote(
-  //           inputMint,
-  //           outputMint,
-  //           amountInSmallestUnit,
-  //         );
+      setSending(true);
 
-  //         setQuotedata(quote);
-  //         return quote;
-  //       } catch (error) {
-  //         console.error("[useWallet] quote error:", error);
-  //         setQuotedata(null);
-  //         throw error;
-  //       } finally {
-  //         setQuoteLoading(false);
-  //       }
-  //     },
-  //     [isDevnet],
-  //   );
+      try {
+        const recipientPubkey = new PublicKey(recipientAddress);
+        const mintPubkey = new PublicKey(mintAddress);
 
-  //Clear Quote
-  //   const clearQuote = useCallback(() => {
-  //     setQuotedata(null);
-  //   }, []);
+        // Create transaction
+        const transaction = await sendSplToken({
+          connection,
+          senderPublicKey: publicKey,
+          recipientAddress: recipientPubkey,
+          mint: mintPubkey,
+          amount,
+          decimals,
+        });
 
-  //Execute Swap
-  //   const executeSwap = useCallback(
-  //     async (
-  //       quote: QuoteResponse,
-  //       inputSymbol: string,
-  //       outputSymbol: string,
-  //       outputDecimals: number,
-  //     ) => {
-  //       if (!publicKey) {
-  //         throw new Error("Wallet not Connected");
-  //       }
-  //       if (isDevnet) {
-  //         throw new Error("Jupiter Swap only works in Mainnet");
-  //       }
+        transaction.feePayer = publicKey;
 
-  //       setSwaping(true);
-  //       try {
-  //         console.log("[useWallet] getting swap transaction...");
+        const { blockhash, lastValidBlockHeight } =
+          await connection.getLatestBlockhash("confirmed");
 
-  //         const swapTxBase64 = await getSwapTransaction(
-  //           quote,
-  //           publicKey.toBase58(),
-  //         );
-  //         const swapTXBuffer = Buffer.from(swapTxBase64, "base64");
-  //         const transaction = VersionedTransaction.deserialize(swapTXBuffer);
+        transaction.recentBlockhash = blockhash;
+        transaction.lastValidBlockHeight = lastValidBlockHeight;
 
-  //         const signedTransaction = await transact(
-  //           async (wallet: Web3MobileWallet) => {
-  //             await wallet.authorize({
-  //               chain: `solana:${cluster}`,
-  //               identity: APP_IDENTITY,
-  //             });
+        // Sign with mobile wallet
+        const signedTransaction = await transact(
+          async (wallet: Web3MobileWallet) => {
+            await wallet.authorize({
+              chain: `solana:${cluster}`,
+              identity: APP_IDENTITY,
+            });
 
-  //             const signedTxs = await wallet.signTransactions({
-  //               transactions: [transaction],
-  //             });
+            const signedTxs = await wallet.signTransactions({
+              transactions: [transaction],
+            });
 
-  //             if (!signedTxs || signedTxs.length === 0) {
-  //               throw new Error("[swpatx] no signed transaction found");
-  //             }
-  //             return signedTxs[0];
-  //           },
-  //         );
-  //         console.log("[useWallet] swap signed, waiting before send...");
-  //         await new Promise((resolve) => setTimeout(resolve, 1000));
+            if (!signedTxs?.length) {
+              throw new Error("No signed transaction returned");
+            }
 
-  //         //sending transaction with retry logic
-  //         const rawTransaction = signedTransaction.serialize();
+            return signedTxs[0];
+          },
+        );
 
-  //         let signature: string | null = null;
-  //         let lastError: Error | null = null;
+        const rawTransaction = signedTransaction.serialize();
 
-  //         for (let attempt = 1; attempt <= 3; attempt++) {
-  //           try {
-  //             signature = await connection.sendRawTransaction(rawTransaction, {
-  //               maxRetries: 2,
-  //               skipPreflight: true,
-  //             });
-  //             break;
-  //           } catch (error: unknown) {
-  //             lastError = error as Error;
-  //             console.log(`Attempt ${attempt} failed`, lastError.message);
-  //             if (attempt < 3) {
-  //               await new Promise((resolve) => setTimeout(resolve, 1000));
-  //             }
-  //           }
-  //         }
+        let signature: string | null = null;
+        let lastError: Error | null = null;
 
-  //         if (!signature) {
-  //           throw (
-  //             lastError ||
-  //             new Error("Failed to send swap Transaction after 3 attempts")
-  //           );
-  //         }
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            signature = await connection.sendRawTransaction(rawTransaction, {
+              maxRetries: 2,
+              skipPreflight: false,
+              preflightCommitment: "confirmed",
+            });
 
-  //         const outputAmount = fromSmallestUnit(quote.outAmount, outputDecimals);
-  //         setQuotedata(null);
-  //         return {
-  //           signature: signature,
-  //           inputSymbol,
-  //           outputSymbol,
-  //           outputAmount,
-  //         };
-  //       } catch (error) {
-  //         console.error("[useWallet] swap error:", error);
-  //         throw error;
-  //       } finally {
-  //         setSwaping(false);
-  //       }
-  //     },
-  //     [publicKey, connection, isDevnet],
-  //   );
+            break;
+          } catch (err) {
+            lastError = err as Error;
+
+            if (attempt < 3) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+          }
+        }
+
+        if (!signature) {
+          throw lastError ?? new Error("Failed to send transaction");
+        }
+
+        await connection.confirmTransaction(
+          {
+            signature,
+            blockhash,
+            lastValidBlockHeight,
+          },
+          "confirmed",
+        );
+
+        return signature;
+      } catch (error) {
+        console.error("Send token error:", error);
+        throw error;
+      } finally {
+        setSending(false);
+      }
+    },
+    [publicKey, connection, cluster],
+  );
+
+  // Fetch Swap Quote
+  const fetchSwapQuote = useCallback(
+      async (
+        inputMint: string,
+        outputMint: string,
+        inputAmount: number,
+        inputDecimals: number,
+      ) => {
+        if (isDevnet) {
+          setQuotedata(null);
+          return null;
+        }
+
+        setQuoteLoading(true);
+        try {
+          const amountInSmallestUnit = toSmallestUnit(inputAmount, inputDecimals);
+          const quote = await getSwapQuote(
+            inputMint,
+            outputMint,
+            amountInSmallestUnit,
+          );
+
+          setQuotedata(quote);
+          return quote;
+        } catch (error) {
+          console.error("[useWallet] quote error:", error);
+          setQuotedata(null);
+          throw error;
+        } finally {
+          setQuoteLoading(false);
+        }
+      },
+      [isDevnet],
+    );
+
+  // Fetch Swap Quote (ExactOut) - for swap-and-send: outputAmountAtomic = desired token amount in smallest units
+  const fetchSwapQuoteExactOut = useCallback(
+    async (
+      inputMint: string,
+      outputMint: string,
+      outputAmountAtomic: number,
+    ) => {
+      if (isDevnet) {
+        setQuotedata(null);
+        return null;
+      }
+      setQuoteLoading(true);
+      try {
+        const quote = await getSwapQuoteExactOut(
+          inputMint,
+          outputMint,
+          outputAmountAtomic,
+        );
+        setQuotedata(quote);
+        return quote;
+      } catch (error) {
+        console.error("[useWallet] ExactOut quote error:", error);
+        setQuotedata(null);
+        throw error;
+      } finally {
+        setQuoteLoading(false);
+      }
+    },
+    [isDevnet],
+  );
+
+  // Clear Quote
+  const clearQuote = useCallback(() => {
+      setQuotedata(null);
+    }, []);
+
+  // Execute Swap
+  const executeSwap = useCallback(
+      async (
+        quote: QuoteResponse,
+        inputSymbol: string,
+        outputSymbol: string,
+        outputDecimals: number,
+      ) => {
+        if (!publicKey) {
+          throw new Error("Wallet not Connected");
+        }
+        if (isDevnet) {
+          throw new Error("Jupiter Swap only works in Mainnet");
+        }
+
+        setSwaping(true);
+        try {
+          console.log("[useWallet] getting swap transaction...");
+
+          const swapTxBase64 = await getSwapTransaction(
+            quote,
+            publicKey.toBase58(),
+          );
+          const swapTXBuffer = Buffer.from(swapTxBase64, "base64");
+          const transaction = VersionedTransaction.deserialize(swapTXBuffer);
+
+          const signedTransaction = await transact(
+            async (wallet: Web3MobileWallet) => {
+              await wallet.authorize({
+                chain: `solana:${cluster}`,
+                identity: APP_IDENTITY,
+              });
+
+              const signedTxs = await wallet.signTransactions({
+                transactions: [transaction],
+              });
+
+              if (!signedTxs || signedTxs.length === 0) {
+                throw new Error("[swpatx] no signed transaction found");
+              }
+              return signedTxs[0];
+            },
+          );
+          console.log("[useWallet] swap signed, waiting before send...");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          //sending transaction with retry logic
+          const rawTransaction = signedTransaction.serialize();
+
+          let signature: string | null = null;
+          let lastError: Error | null = null;
+
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              signature = await connection.sendRawTransaction(rawTransaction, {
+                maxRetries: 2,
+                skipPreflight: true,
+              });
+              break;
+            } catch (error: unknown) {
+              lastError = error as Error;
+              console.log(`Attempt ${attempt} failed`, lastError.message);
+              if (attempt < 3) {
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+            }
+          }
+
+          if (!signature) {
+            throw (
+              lastError ||
+              new Error("Failed to send swap Transaction after 3 attempts")
+            );
+          }
+
+          const outputAmount = fromSmallestUnit(quote.outAmount, outputDecimals);
+          setQuotedata(null);
+          return {
+            signature: signature,
+            inputSymbol,
+            outputSymbol,
+            outputAmount,
+          };
+        } catch (error) {
+          console.error("[useWallet] swap error:", error);
+          throw error;
+        } finally {
+          setSwaping(false);
+        }
+      },
+      [publicKey, connection, isDevnet],
+    );
+
+  // Swap and send in one transaction (Jupiter swap-instructions + destinationTokenAccount = recipient ATA)
+  const executeSwapAndSend = useCallback(
+    async (
+      quote: QuoteResponse,
+      recipientAddress: string,
+      outputMint: string,
+    ) => {
+      if (!publicKey) {
+        throw new Error("Wallet not connected");
+      }
+      if (isDevnet) {
+        throw new Error("Swap & Send only works on mainnet");
+      }
+
+      setSwaping(true);
+      try {
+        const transaction = await buildSwapAndSendTransaction({
+          connection,
+          quote,
+          userPublicKey: publicKey,
+          recipientAddress: new PublicKey(recipientAddress),
+          outputMint: new PublicKey(outputMint),
+        });
+
+        const signedTx = await transact(async (wallet: Web3MobileWallet) => {
+          await wallet.authorize({
+            chain: `solana:${cluster}`,
+            identity: APP_IDENTITY,
+          });
+          const signed = await wallet.signTransactions({
+            transactions: [transaction],
+          });
+          if (!signed?.length) throw new Error("No signed transaction");
+          return signed[0];
+        });
+
+        const raw = signedTx.serialize();
+        let signature: string | null = null;
+        let lastError: Error | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            signature = await connection.sendRawTransaction(raw, {
+              maxRetries: 2,
+              skipPreflight: true,
+            });
+            break;
+          } catch (err) {
+            lastError = err as Error;
+            if (attempt < 3) {
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
+        }
+        if (!signature) {
+          throw lastError ?? new Error("Failed to send transaction");
+        }
+        setQuotedata(null);
+        return { signature };
+      } catch (error) {
+        console.error("[useWallet] swap-and-send error:", error);
+        throw error;
+      } finally {
+        setSwaping(false);
+      }
+    },
+    [publicKey, connection, isDevnet, cluster],
+  );
 
   return {
     connect,
@@ -398,13 +615,16 @@ export function useWallet() {
     getBalance,
     getTokenBalances,
     sendSol,
+    sendToken,
     sending,
-    //fetchSwapQuote,
-    //clearQuote,
-    //quotedata,
-    //quoteLoading,
-    //executeSwap,
-    //swaping,
+    fetchSwapQuote,
+    fetchSwapQuoteExactOut,
+    clearQuote,
+    quotedata,
+    quoteLoading,
+    executeSwap,
+    executeSwapAndSend,
+    swaping,
     connection,
   };
 }

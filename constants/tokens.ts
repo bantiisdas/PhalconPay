@@ -60,6 +60,19 @@ export const AVAILABLE_TOKENS = [
   TOKENS.WIF,
 ];
 
+/** Token config for send screen: symbol, decimals, mint (null for SOL). */
+export const TOKENS_CONFIG: Record<
+  string,
+  { symbol: string; decimals: number; mint: string | null }
+> = {
+  SOL: { symbol: "SOL", decimals: 9, mint: null },
+  USDC: { symbol: "USDC", decimals: 6, mint: TOKENS.USDC },
+  USDT: { symbol: "USDT", decimals: 6, mint: TOKENS.USDT },
+  BONK: { symbol: "BONK", decimals: 5, mint: TOKENS.BONK },
+  JUP: { symbol: "JUP", decimals: 6, mint: TOKENS.JUP },
+  WIF: { symbol: "WIF", decimals: 6, mint: TOKENS.WIF },
+};
+
 // Helper: get token info by mint address
 export function getTokenInfo(mint: string) {
   return TOKEN_INFO[mint] ?? null;
@@ -99,7 +112,9 @@ export interface TokenOption {
 }
 
 /** Build TokenOption[] from AVAILABLE_TOKENS + TOKEN_INFO. Pass balances to override mock. */
-export function getTokenOptions(balances?: Partial<Record<string, string>>): TokenOption[] {
+export function getTokenOptions(
+  balances?: Partial<Record<string, string>>,
+): TokenOption[] {
   return AVAILABLE_TOKENS.map((mint) => {
     const info = TOKEN_INFO[mint];
     const symbol = info?.symbol ?? "???";
@@ -130,13 +145,7 @@ export const RECEIVE_TOKEN_CHIPS = AVAILABLE_TOKENS.map((mint) => {
 });
 
 /** Icon type for TokenBalanceList (symbol lowercase). */
-export type TokenIconType =
-  | "sol"
-  | "usdc"
-  | "usdt"
-  | "bonk"
-  | "jup"
-  | "wif";
+export type TokenIconType = "sol" | "usdc" | "usdt" | "bonk" | "jup" | "wif";
 
 export interface TokenBalanceItem {
   id: string;

@@ -10,9 +10,11 @@ import { Header, HeaderButton } from '@/components/ui/Header';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import type { TransactionIconType } from '@/components/TransactionItem';
 import {
-  getTransactionById,
-  type TransactionDetails,
-} from '@/constants/transactions';
+  getStoredTransactionDetails,
+  type TransactionDetailsView,
+} from '@/store/transactionsStore';
+import { useWalletStore } from '@/store/wallet-store';
+import * as Linking from 'expo-linking';
 import { colors } from '@/constants/colors';
 import { spacing } from '@/constants/spacing';
 
@@ -26,7 +28,7 @@ function TransactionSummaryIcon({
   type,
 }: {
   iconType?: TransactionIconType;
-  type: TransactionDetails['type'];
+  type: TransactionDetailsView['type'];
 }) {
   const bg = colors.primary + '30';
   const symbol =
@@ -49,7 +51,8 @@ function TransactionSummaryIcon({
 export default function TransactionDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const tx = id ? getTransactionById(id) : undefined;
+  const isDevnet = useWalletStore((s) => s.isDevnet);
+  const tx = id ? getStoredTransactionDetails(id) : undefined;
 
   if (!tx) {
     return (
@@ -83,7 +86,14 @@ export default function TransactionDetailsScreen() {
     await Clipboard.setStringAsync(tx.hash);
   };
 
-  const counterpartyLabel = isReceived ? `From ${tx.title}` : `To ${tx.title}`;
+  const counterpartyLabel =
+    tx.type === 'swap'
+      ? tx.title
+      : isReceived
+        ? `From ${tx.title}`
+        : `To ${tx.title}`;
+
+  const explorerUrl = `https://solscan.io/tx/${tx.hash}${isDevnet ? '?cluster=devnet' : ''}`;
 
   return (
     <ScreenContainer edges={['top']} paddingHorizontal="lg" paddingBottom="xl">
@@ -132,16 +142,20 @@ export default function TransactionDetailsScreen() {
         <Card padding={0} withMargin={false} style={styles.detailsCard}>
           <Text style={styles.detailsCardTitle}>Transaction details</Text>
           <View style={styles.cardPadding}>
-            <DetailRow
-              label="From"
-              value={tx.fromName}
-              subValue={shorten(tx.fromAddress)}
-            />
-            <DetailRow
-              label="To"
-              value={tx.toName}
-              subValue={shorten(tx.toAddress)}
-            />
+            {tx.fromAddress || tx.fromName ? (
+              <DetailRow
+                label="From"
+                value={tx.fromName}
+                subValue={tx.fromAddress ? shorten(tx.fromAddress) : undefined}
+              />
+            ) : null}
+            {tx.toAddress || tx.toName ? (
+              <DetailRow
+                label="To"
+                value={tx.toName}
+                subValue={tx.toAddress ? shorten(tx.toAddress) : undefined}
+              />
+            ) : null}
             <DetailRow label="Amount" value={tx.amount} />
             <DetailRow label="Network Fee" value={tx.networkFee} />
             <DetailRow label="Total" value={tx.total} last />
@@ -170,7 +184,7 @@ export default function TransactionDetailsScreen() {
               <Text style={styles.hashButtonText}>Copy Hash</Text>
             </Pressable>
             <Pressable
-              onPress={() => {}}
+              onPress={() => Linking.openURL(explorerUrl)}
               style={({ pressed }) => [styles.hashButton, pressed && styles.pressed]}
               accessibilityLabel="View on Explorer">
               <Text style={styles.hashButtonText}>View on Explorer</Text>

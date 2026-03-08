@@ -1,4 +1,4 @@
-// jupiter metis api - requires api key from portal.jup.ag
+// jupiter api - requires api key from portal.jup.ag
 const JUPITER_API = "https://api.jup.ag/swap/v1";
 const JUPITER_API_KEY = process.env.EXPO_PUBLIC_JUPITER_API_KEY || "";
 
@@ -129,7 +129,13 @@ export async function getSwapQuote(
       if (!response.ok) {
         const errorText = await response.text();
         console.error("[jupiter] quote failed:", response.status, errorText);
-        throw new Error(`Jupiter quote failed: ${response.status}`);
+        const err = new Error(
+          response.status === 429
+            ? "Rate limited. Please wait a moment."
+            : `Jupiter quote failed: ${response.status}`,
+        ) as Error & { status?: number };
+        err.status = response.status;
+        throw err;
       }
 
       const quote = await response.json();
@@ -138,10 +144,14 @@ export async function getSwapQuote(
       return quote;
     } catch (error) {
       lastError = error as Error;
+      const is429 =
+        lastError && "status" in lastError && (lastError as { status?: number }).status === 429;
       console.log(`Attempt ${attempt} failed with error: ${lastError.message}`);
 
-      if (attempt < 3) {
+      if (attempt < 3 && !is429) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
+      } else {
+        break;
       }
     }
   }
@@ -149,14 +159,185 @@ export async function getSwapQuote(
   throw lastError || new Error("Failed to fetch quote after 3 attempts");
 }
 
-//Get Swap Transaction - ready to sign
+/**
+ * Get quote in ExactOut mode: amount = desired output (in smallest units).
+ * Uses same api.jup.ag/swap/v1/quote as regular quote, with swapMode=ExactOut.
+ * Returns quote with inAmount = SOL required, outAmount = token amount.
+ */
+export async function getSwapQuoteExactOut(
+  inputMint: string,
+  outputMint: string,
+  outputAmountAtomic: number,
+  slippageBps: number = 50,
+): Promise<QuoteResponse> {
+  const params = new URLSearchParams({
+    inputMint,
+    outputMint,
+    amount: outputAmountAtomic.toString(),
+    swapMode: "ExactOut",
+    slippageBps: slippageBps.toString(),
+  });
+
+  const url = `${JUPITER_API}/quote?${params}`;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json", "x-api-key": JUPITER_API_KEY },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        await response.text();
+        const err = new Error(
+          response.status === 429
+            ? "Rate limited. Please wait a moment."
+            : `Jupiter quote failed: ${response.status}`,
+        ) as Error & { status?: number };
+        err.status = response.status;
+        throw err;
+      }
+
+      const quote = (await response.json()) as QuoteResponse;
+      return { ...quote, swapMode: "ExactOut" };
+    } catch (error) {
+      lastError = error as Error;
+      const is429 =
+        lastError && "status" in lastError && (lastError as { status?: number }).status === 429;
+      if (attempt < 3 && !is429) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } else {
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to fetch ExactOut quote");
+}
+
+const JUPITER_SWAP_V6 = "https://quote-api.jup.ag/v6/swap";
+// Use api.jup.ag (same host as quote) to avoid "Network request failed" on React Native / Android
+const JUPITER_SWAP_INSTRUCTIONS = `${JUPITER_API}/swap-instructions`;
+
+/** Single instruction from Jupiter swap-instructions API */
+export interface JupiterInstructionAccount {
+  pubkey: string;
+  isSigner: boolean;
+  isWritable: boolean;
+}
+
+export interface JupiterRawInstruction {
+  programId: string;
+  accounts: JupiterInstructionAccount[];
+  data: string; // base64
+}
+
+/** Response from POST /v6/swap-instructions */
+export interface SwapInstructionsResponse {
+  computeBudgetInstructions: JupiterRawInstruction[];
+  setupInstructions: JupiterRawInstruction[];
+  swapInstruction: JupiterRawInstruction;
+  cleanupInstruction: JupiterRawInstruction | null;
+  otherInstructions: JupiterRawInstruction[];
+  addressLookupTableAddresses: string[];
+}
+
+/**
+ * Get raw swap instructions (no full transaction).
+ * Uses api.jup.ag/swap/v1/swap-instructions so it works with v1 quote and avoids quote-api.jup.ag network issues.
+ * Use destinationTokenAccount to send swap output directly to recipient (swap-and-send in one tx).
+ */
+export async function getSwapInstructionsV6(
+  quoteResponse: QuoteResponse,
+  userPublicKey: string,
+  destinationTokenAccount?: string,
+): Promise<SwapInstructionsResponse> {
+  const body: Record<string, unknown> = {
+    userPublicKey,
+    quoteResponse,
+    wrapAndUnwrapSol: true,
+    dynamicComputeUnitLimit: true,
+    prioritizationFeeLamports: {
+      priorityLevelWithMaxLamports: {
+        priorityLevel: "veryHigh",
+        maxLamports: 1000000,
+      },
+    },
+  };
+  if (destinationTokenAccount != null) {
+    body.destinationTokenAccount = destinationTokenAccount;
+  }
+
+  const response = await fetch(JUPITER_SWAP_INSTRUCTIONS, {
+    method: "POST",
+    headers: {
+      "x-api-key": JUPITER_API_KEY,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[jupiter] swap-instructions failed:", response.status, errorText);
+    throw new Error(`Jupiter swap-instructions failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<SwapInstructionsResponse>;
+}
+
+/**
+ * Get swap transaction from Jupiter v6 swap endpoint.
+ * Use this when the quote was obtained from v6/quote (e.g. ExactOut for swap-and-send).
+ */
+export async function getSwapTransactionV6(
+  quoteResponse: QuoteResponse,
+  userPublicKey: string,
+): Promise<string> {
+  const response = await fetch(JUPITER_SWAP_V6, {
+    method: "POST",
+    headers: {
+      "x-api-key": JUPITER_API_KEY,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      userPublicKey,
+      quoteResponse,
+      wrapAndUnwrapSol: true,
+      dynamicComputeUnitLimit: true,
+      prioritizationFeeLamports: {
+        priorityLevelWithMaxLamports: {
+          priorityLevel: "veryHigh",
+          maxLamports: 1000000,
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[jupiter] v6 swap tx failed:", response.status, errorText);
+    throw new Error(`Jupiter swap failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.swapTransaction;
+}
+
+// Get Swap Transaction (v1) - for ExactIn quotes from swap screen
 export async function getSwapTransaction(
   quoteResponse: QuoteResponse,
   userPublicKey: string,
 ): Promise<string> {
-  console.log("[jupiter] getSwapTransaction called");
-  console.log("[jupiter] userPublicKey:", userPublicKey);
-
   const url = `${JUPITER_API}/swap`;
 
   const response = await fetch(url, {
@@ -187,7 +368,6 @@ export async function getSwapTransaction(
   }
 
   const swapTx = await response.json();
-
   return swapTx.swapTransaction;
 }
 
@@ -216,13 +396,27 @@ const JUPITER_TOKENS_V2 = "https://api.jup.ag/tokens/v2";
 let tokenIconsCache: Record<string, string> | null = null;
 let tokenIconsCacheKey: string = "";
 
-// Fallback icon URLs when Jupiter returns no icon (e.g. USDT, WIF)
+// Fallback icon URLs when Jupiter returns no icon or SVG/.link (RN Image can't display SVG; UI shows letter for .svg)
 const FALLBACK_TOKEN_ICONS: Record<string, string> = {
   [TOKENS.USDT]:
-    "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.png",
+    "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg",
   [TOKENS.WIF]:
     "https://assets.coingecko.com/coins/images/33566/small/dogwifhat.jpg",
 };
+
+function applyFallbacksForUnusableUrls(
+  result: Record<string, string>,
+  mints: string[],
+): void {
+  mints.forEach((mint) => {
+    if (!FALLBACK_TOKEN_ICONS[mint]) return;
+    const url = result[mint] ?? "";
+    const isSvgOrLink = /\.svg/i.test(url) || /\.link/i.test(url);
+    if (!result[mint] || isSvgOrLink) {
+      result[mint] = FALLBACK_TOKEN_ICONS[mint];
+    }
+  });
+}
 
 /** Fetch token icon URLs by mint. Uses x-api-key from env. Cached in memory. */
 export async function fetchTokenIcons(
@@ -230,7 +424,11 @@ export async function fetchTokenIcons(
 ): Promise<Record<string, string>> {
   if (mints.length === 0) return {};
   const key = mints.slice().sort().join(",");
-  if (tokenIconsCache && tokenIconsCacheKey === key) return tokenIconsCache;
+  if (tokenIconsCache && tokenIconsCacheKey === key) {
+    const cached = { ...tokenIconsCache };
+    applyFallbacksForUnusableUrls(cached, mints);
+    return cached;
+  }
 
   const query = mints.join(",");
   const url = `${JUPITER_TOKENS_V2}/search?query=${encodeURIComponent(query)}`;
@@ -251,13 +449,8 @@ export async function fetchTokenIcons(
         if (item?.id && item?.icon) result[item.id] = item.icon;
       });
     }
-    // Fill missing icons from fallbacks (Jupiter often has no icon for USDT/WIF)
-    mints.forEach((mint) => {
-      if (!result[mint] && FALLBACK_TOKEN_ICONS[mint]) {
-        result[mint] = FALLBACK_TOKEN_ICONS[mint];
-      }
-    });
-    tokenIconsCache = result;
+    applyFallbacksForUnusableUrls(result, mints);
+    tokenIconsCache = { ...result };
     tokenIconsCacheKey = key;
     return result;
   } catch {

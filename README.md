@@ -22,6 +22,16 @@
 
 ---
 
+## 📥 Download
+
+<p align="center">
+  <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest">
+    <img src="https://img.shields.io/badge/📱_Download_Latest_APK-success?style=for-the-badge" alt="Download APK">
+  </a>
+</p>
+
+---
+
 ## ✨ Overview
 
 PhalconPay is a smart payment wallet for the Solana ecosystem.

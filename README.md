@@ -1,7 +1,7 @@
 # 🚀 PhalconPay
 
 <p align="center">
-  <img src="./assets/logo.png" width="120" alt="PhalconPay Logo" />
+  <img src="./assets/images/In-App-Logo.png" width="120" alt="PhalconPay Logo" />
 </p>
 
 <p align="center">

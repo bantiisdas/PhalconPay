@@ -24,11 +24,19 @@
 
 ## 📥 Download
 
-<p align="center">
-  <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest">
-    <img src="https://img.shields.io/badge/📱_Download_Latest_APK-success?style=for-the-badge" alt="Download APK">
-  </a>
-</p>
+<div align="center">
+
+### 📥 Download PhalconPay
+
+<a href="https://github.com/bantiisdas/PhalconPay/releases/download/v1.0.0/PhalconPay.apk">
+  <img src="https://img.shields.io/badge/⚡_Download_Latest_APK-2563EB?style=for-the-badge&logo=android&logoColor=white">
+</a>
+
+<br/><br/>
+
+**Android • Solana Wallet • Scan & Pay • Swap & Send**
+
+</div>
 
 ---
 

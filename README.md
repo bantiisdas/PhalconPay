@@ -45,14 +45,14 @@ The goal is simple:
 # 📱 Screenshots
 
 <p align="center">
-  <img src="./screenshots/HomeScreen-portrait.png" width="220"/>
-  <img src="./screenshots/SwapScreen-portrait.png" width="220"/>
-  <img src="./screenshots/ReceiveScreen-portrait.png" width="220"/>
+  <img src="/assets/images/HomeScreen-portrait.png" width="220"/>
+  <img src="/assets/images/SwapScreen-portrait.png" width="220"/>
+  <img src="/assets/images/ReceiveScreen-portrait.png" width="220"/>
 </p>
 
 <p align="center">
-  <img src="./screenshots/Swap&SendScreen-portrait.png" width="220"/>
-  <img src="./screenshots/AccountScreen-portrait.png" width="220"/>
+  <img src="/assets/images/Swap&SendScreen-portrait.png" width="220"/>
+  <img src="/assets/images/AccountScreen-portrait.png" width="220"/>
 </p>
 
 ---
@@ -66,7 +66,7 @@ The goal is simple:
 - Quick access to favorites
 - Recent transactions
 
-<img src="./screenshots/HomeScreen-portrait.png" width="280"/>
+<img src="/assets/images/HomeScreen-portrait.png" width="280"/>
 
 ---
 
@@ -78,7 +78,7 @@ Powered by Jupiter Aggregator.
 - Exact In / Exact Out support
 - Mainnet optimized execution
 
-<img src="./screenshots/SwapScreen-portrait.png" width="280"/>
+<img src="/assets/images/SwapScreen-portrait.png" width="280"/>
 
 ---
 
@@ -95,7 +95,7 @@ If a payment QR requests a token you don't currently own:
 
 All in a single flow.
 
-<img src="./screenshots/Swap&SendScreen-portrait.png" width="280"/>
+<img src="/assets/images/Swap&SendScreen-portrait.png" width="280"/>
 
 ---
 
@@ -128,7 +128,7 @@ Includes:
 - Requested token
 - Fixed payment amount
 
-<img src="./screenshots/ReceiveScreen-portrait.png" width="280"/>
+<img src="/assets/images/ReceiveScreen-portrait.png" width="280"/>
 
 ---
 
@@ -139,7 +139,7 @@ Includes:
 - Network configuration
 - User preferences
 
-<img src="./screenshots/AccountScreen-portrait.png" width="280"/>
+<img src="/assets/images/AccountScreen-portrait.png" width="280"/>
 
 ---
 
